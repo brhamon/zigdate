@@ -21,7 +21,7 @@ fn nextElectionDay() void {
         // The day *after* the first Monday of November in an even-numbered year.
         const e = date.FromCardinal(date.Nth.First, date.Weekday.Monday, eYear, 11) catch date.min;
         const ec = e.code();
-        if (ec >= dc) {
+        if (ec + 1 >= dc) {
             eday = date.FromCode(ec + 1);
             break;
         }
