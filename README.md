@@ -44,9 +44,9 @@ I have not figured out how to generate docs from this yet.
 
 Basically, you construct a `Date` type with one of three constructors:
 
-1. FromYmd
-1. FromCardinal
-1. FromCode
+1. `FromYmd`
+1. `FromCardinal`
+1. `FromCode`
 
 Constructors that can fail return an error union. Therefore, call with `try` or `catch`,
 depending upon whether you want to propagate the range error to your caller, or
@@ -75,7 +75,7 @@ a user with privileges to write there:
 
 Set the ZIGVER to the [newest stable build](https://ziglang.org/download/):
 ```
-export ZIGVER=linux-x86\_64-0.3.0+c76d51de
+export ZIGVER=linux-x86_64-0.3.0+c76d51de
 curl -O https://ziglang.org/builds/zig-${ZIGVER}.tar.xz
 sha256sum zig-${ZIGVER}.tar.xz
 # check against published sha256 sums, proceed only if exact match
