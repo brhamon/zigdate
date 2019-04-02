@@ -20,7 +20,7 @@ fn nextElectionDay(t: date.Date) date.Date {
     var ec = e.code();
     if (ec + 1 < t.code()) {
         // Election day this year has passed. The next election is 2 years away.
-        const e2 = date.FromCardinal(date.Nth.First, date.Weekday.Monday, eYear+2, 11) catch date.max;
+        const e2 = date.FromCardinal(date.Nth.First, date.Weekday.Monday, eYear + 2, 11) catch date.max;
         ec = e2.code();
     }
     // Election day in the U. S. is always on the day *after* the first Monday of November.
@@ -30,9 +30,7 @@ fn nextElectionDay(t: date.Date) date.Date {
 pub fn main() void {
     // Note the range error below:
     var my_date = date.FromYmd(2019, 3, 130) catch date.min;
-    warn("\nGregorianDate\ntype: {}\nsize: {}\nvalue: {}-{}-{}\n",
-        @typeName(@typeOf(my_date)), @intCast(u32, @sizeOf(@typeOf(my_date))),
-        my_date.year(), my_date.month(), my_date.day());
+    warn("\nGregorianDate\ntype: {}\nsize: {}\nvalue: {}-{}-{}\n", @typeName(@typeOf(my_date)), @intCast(u32, @sizeOf(@typeOf(my_date))), my_date.year(), my_date.month(), my_date.day());
 
     var my_date2 = date.FromYmd(2019, 3, 30) catch date.min;
     warn("\nmy_date2: {}-{}-{}\n", my_date2.year(), @tagName(my_date2.monthEnum()), my_date2.day());
@@ -55,8 +53,7 @@ pub fn main() void {
     warn("Today: {}-{}-{}\n", t.year(), t.month(), t.day());
 
     const eday = nextElectionDay(t);
-    warn("Election day is {}-{}-{}, {} days from today.\n",
-        eday.year(), eday.month(), eday.day(), eday.code() - tc);
+    warn("Election day is {}-{}-{}, {} days from today.\n", eday.year(), eday.month(), eday.day(), eday.code() - tc);
 
     // Convert a date code to Julian Date
     const unix_to_julian_bias: f64 = 2440587.5;

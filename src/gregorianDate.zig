@@ -106,19 +106,19 @@ pub const Date = packed struct {
         // We take the approach of starting the year on March 1 so that leap days fall
         // at the end. To do this we pretend Jan. - Feb. are part of the previous year.
         var bYear: i32 = self.year() - 1600;
-        var dr = di.divInteger(self.month() - 3, 12);
+        var dr = di.flooredDivision(self.month() - 3, 12);
         var bYday: i32 = dayOffset[@intCast(usize, dr.modulus)] + self.day() - 1;
         bYear += dr.quotient;
 
-        dr = di.divInteger(bYear, 400);
+        dr = di.flooredDivision(bYear, 400);
         bYear = dr.modulus;
         var days: i32 = dr.quotient * nbrOfDaysPer400Years;
 
-        dr = di.divInteger(bYear, 100);
+        dr = di.flooredDivision(bYear, 100);
         bYear = dr.modulus;
         days += dr.quotient * nbrOfDaysPer100Years;
 
-        dr = di.divInteger(bYear, 4);
+        dr = di.flooredDivision(bYear, 4);
         bYear = dr.modulus;
         days += dr.quotient * nbrOfDaysPer4Years + nbrOfDaysPerYear * bYear + bYday - unixEpochBeginsOnDay;
         return days;
@@ -140,7 +140,7 @@ fn isDayInRange(d: i32) bool {
 /// Returns an integer representing the day of the week, for the given date code.
 /// 0 => Monday, 6 => Sunday
 pub fn dayOfWeek(datecode: i32) i32 {
-    return di.divInteger(datecode + 3, 7).modulus;
+    return di.flooredDivision(datecode + 3, 7).modulus;
 }
 
 /// Returns an enumerated value representing the day of the week, for the given
@@ -153,10 +153,10 @@ pub fn weekday(datecode: i32) Weekday {
 pub fn FromCode(datecode: i32) Date {
     // dateCode has the number of days relative to 1/1/1970, shift this back to 3/1/1600
     var bdc: i32 = datecode + unixEpochBeginsOnDay;
-    var dr = di.divInteger(bdc, nbrOfDaysPer400Years);
+    var dr = di.flooredDivision(bdc, nbrOfDaysPer400Years);
     bdc = dr.modulus;
     var y: i32 = dr.quotient * 400;
-    dr = di.divInteger(bdc, nbrOfDaysPer100Years);
+    dr = di.flooredDivision(bdc, nbrOfDaysPer100Years);
     bdc = dr.modulus;
     y += dr.quotient * 100;
     // put the leap day at the end of 400-year cycle
@@ -164,10 +164,10 @@ pub fn FromCode(datecode: i32) Date {
         y -= 100;
         bdc += nbrOfDaysPer100Years;
     }
-    dr = di.divInteger(bdc, nbrOfDaysPer4Years);
+    dr = di.flooredDivision(bdc, nbrOfDaysPer4Years);
     bdc = dr.modulus;
     y += dr.quotient * 4;
-    dr = di.divInteger(bdc, nbrOfDaysPerYear);
+    dr = di.flooredDivision(bdc, nbrOfDaysPerYear);
     bdc = dr.modulus;
     // put the leap day at the end of 4-year cycle
     y += dr.quotient;
