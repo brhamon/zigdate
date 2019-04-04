@@ -28,7 +28,7 @@ const nbrOfDaysPer4Years: i32 = 1461;
 const nbrOfDaysPerYear: i32 = 365;
 const unixEpochBeginsOnDay: i32 = 135080;
 
-const dayOffset = []i32{ 0, 31, 61, 92, 122, 153, 184, 214, 245, 275, 306, 337, 366 };
+const dayOffset = []i32{ 0, 31, 61, 92, 122, 153, 184, 214, 245, 275, 306, 337 };
 
 /// The names of the weekdays, in English.
 pub const Weekday = enum {
@@ -176,27 +176,15 @@ pub fn FromCode(datecode: i32) Date {
         bdc += nbrOfDaysPerYear;
     }
     // find the month in the table
-    var alpha: usize = 0;
-    var beta: usize = 11;
     var gamma: usize = 0;
-    while (true) {
-        gamma = @divTrunc(alpha + beta, 2);
-        var diff: i32 = dayOffset[gamma] - bdc;
-        if (diff < 0) {
-            var diff2: i32 = dayOffset[gamma + 1] - bdc;
-            if (diff2 < 0) {
-                alpha = gamma + 1;
-            } else if (diff2 == 0) {
-                gamma += 1;
-                break;
-            } else {
-                break;
-            }
-        } else if (diff == 0) {
+    for (dayOffset) |ofs| {
+        if (bdc < ofs) {
+            gamma -= 1;
             break;
-        } else {
-            beta = gamma;
+        } else if (bdc == ofs or gamma == 11) {
+            break;
         }
+        gamma += 1;
     }
     if (gamma >= 10) {
         y += 1;
