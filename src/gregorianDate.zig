@@ -1,6 +1,5 @@
 const warn = std.debug.warn;
 const std = @import("std");
-const di = @import("divInteger.zig");
 
 /// The earliest year that can be stored in a Date
 pub const minYear: i32 = i32(std.math.minInt(i23));
@@ -60,6 +59,26 @@ pub const Month = enum {
 
 const err = error.RangeError;
 
+const DivPair = struct {
+    quotient: i32,
+    modulus: i32,
+};
+
+/// Floored Division. Assumes divisor > 0.
+fn flooredDivision(dividend: i32, comptime divisor: i32) DivPair {
+    if (divisor == 0) {
+        @compileError("division by zero");
+    }
+    if (divisor < 0) {
+        @compileError("floored division implementation does not allow a negative divisor");
+    }
+    const m = @rem(switch (dividend < 0) { true => -dividend, false => dividend }, divisor);
+    return DivPair{
+        .quotient = @divFloor(dividend, divisor),
+        .modulus = switch (m != 0 and dividend < 0) { true => divisor - m, false => m },
+    };
+}
+
 /// A Gregorian date. The size is guaranteed to be 4-bytes, therefore it is
 /// inexpensive to pass by value. Construct a Date in one of the following
 /// ways:
@@ -113,10 +132,10 @@ pub const Date = packed struct {
         // Our internal representation will choose as its base date any day which is
         // at the start of the 400-year Gregorian cycle. We have arbitrarily selected
         // 2000-3-1.
-        const dr = di.flooredDivision(self.month() - 3, 12);
-        const dr400 = di.flooredDivision(self.year() + dr.quotient - 2000, 400);
-        const dr100 = di.flooredDivision(dr400.modulus, 100);
-        const dr4 = di.flooredDivision(dr100.modulus, 4);
+        const dr = flooredDivision(self.month() - 3, 12);
+        const dr400 = flooredDivision(self.year() + dr.quotient - 2000, 400);
+        const dr100 = flooredDivision(dr400.modulus, 100);
+        const dr4 = flooredDivision(dr100.modulus, 4);
         return dr400.quotient * nbrOfDaysPer400Years + dr100.quotient * nbrOfDaysPer100Years + dr4.quotient * nbrOfDaysPer4Years + nbrOfDaysPerYear * dr4.modulus + dayOffset[@intCast(usize, dr.modulus)] + self.day() - unixEpochBeginsOnDay - 1;
     }
 };
@@ -136,7 +155,7 @@ fn isDayInRange(d: i32) bool {
 /// Returns an integer representing the day of the week, for the given date code.
 /// 0 => Monday, 6 => Sunday
 pub fn dayOfWeek(datecode: i32) i32 {
-    return di.flooredDivision(datecode + 3, 7).modulus;
+    return flooredDivision(datecode + 3, 7).modulus;
 }
 
 /// Returns an enumerated value representing the day of the week, for the given
@@ -164,15 +183,15 @@ pub fn findDayOffsetIdx(bdc: i32) usize {
 /// the other two, so prefer the others if possible.
 pub fn FromCode(datecode: i32) Date {
     // dateCode has the number of days relative to 1/1/1970, shift this ahead to 3/1/2000
-    const dr400 = di.flooredDivision(datecode + unixEpochBeginsOnDay, nbrOfDaysPer400Years);
-    var dr100 = di.flooredDivision(dr400.modulus, nbrOfDaysPer100Years);
+    const dr400 = flooredDivision(datecode + unixEpochBeginsOnDay, nbrOfDaysPer400Years);
+    var dr100 = flooredDivision(dr400.modulus, nbrOfDaysPer100Years);
     // put the leap day at the end of 400-year cycle
     if (dr100.quotient == 4) {
         dr100.quotient -= 1;
         dr100.modulus += nbrOfDaysPer100Years;
     }
-    const dr4 = di.flooredDivision(dr100.modulus, nbrOfDaysPer4Years);
-    var dr1 = di.flooredDivision(dr4.modulus, nbrOfDaysPerYear);
+    const dr4 = flooredDivision(dr100.modulus, nbrOfDaysPer4Years);
+    var dr1 = flooredDivision(dr4.modulus, nbrOfDaysPerYear);
     // put the leap day at the end of 4-year cycle
     if (dr1.quotient == 4) {
         dr1.quotient -= 1;
