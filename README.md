@@ -70,20 +70,32 @@ and running this code.
 
 ### Download zig and install
 
-From some path where you can store local binaries (e.g., `/usr/local/bin`), and logged in as 
-a user with privileges to write there:
+In a web browser, find the version and sha256 sum of the [newest stable build](https://ziglang.org/download/). Assign the desired os/arch/version/commit to the environment variable `ZIGVER`, and the system directory where you want to install it (e.g., `/opt` or `/usr/local`) to PREFIX.
 
-Set the ZIGVER to the [newest stable build](https://ziglang.org/download/):
+For example:
 ```
-export ZIGVER=linux-x86_64-0.3.0+c76d51de
+export ZIGVER=linux-x86_64-0.3.0+7dd1e0fc
+export PREFIX=/opt
+```
+
+Now as a regular user account (but which has `sudo` privileges), execute the following commands:
+```
 curl -O https://ziglang.org/builds/zig-${ZIGVER}.tar.xz
 sha256sum zig-${ZIGVER}.tar.xz
 # check against published sha256 sums, proceed only if exact match
 
-tar -tJf zig-${ZIGVER}.tar.xz
-ln -sf zig-${ZIGVER} zig
-export PATH=$(pwd)/zig:$PATH
+tar -xJf zig-${ZIGVER}.tar.xz
+sudo mv zig-${ZIGVER} $PREFIX
+sudo chown -R root:root $PREFIX/zig-${ZIGVER}
+sudo chmod -R o-w $PREFIX/zig-${ZIGVER}
+sudo bash -c "rm -f $PREFIX/zig || echo ignored"
+sudo ln -s $PREFIX/zig-${ZIGVER} $PREFIX/zig
+
+export PATH=$PREFIX/zig:$PATH
+zig version
 ```
+
+The output of the `zig version` command should match what you expect. You will probably want normal users to set the `PATH` as shown in their `.bashrc` files.
 
 ### Clone this project, test and build
 

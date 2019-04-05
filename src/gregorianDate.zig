@@ -26,7 +26,8 @@ const nbrOfDaysPer400Years: i32 = 146097;
 const nbrOfDaysPer100Years: i32 = 36524;
 const nbrOfDaysPer4Years: i32 = 1461;
 const nbrOfDaysPerYear: i32 = 365;
-const unixEpochBeginsOnDay: i32 = 135080;
+// 1970-1-1 was 11017 days before 2000-3-1
+const unixEpochBeginsOnDay: i32 = -11017;
 
 const dayOffset = []i32{ 0, 31, 61, 92, 122, 153, 184, 214, 245, 275, 306, 337 };
 
@@ -92,36 +93,31 @@ pub const Date = packed struct {
         return @intCast(i32, self._day) + 1;
     }
 
-    /// Compare this with another date (the `rhs` or "right hand side"). The result is less than zero
-    /// if this date is before the rhs; greater than zero if this date is after the rhs; and zero
-    /// if the two dates are the same.
+    /// Compare this with another date (the `rhs` or "right hand side"). The result is
+    /// less than zero if this date is before the rhs, greater than zero if this date is
+    /// after the rhs, or zero if the two dates are the same.
     pub fn compare(self: Self, rhs: Self) i32 {
         return compare2(self, rhs);
     }
 
-    /// Calculate the date code, an integer representing the number of days between March 1, 1600
-    /// and this date -- if the Gregorian calendar had been in use continuously. Note that this
-    /// assumption rarely applies to dates prior to about 1750.
+    /// Calculate the date code, an integer representing the number of days since the
+    /// start of the Unix epoch (1970-1-1). Support for negative results allows us to
+    /// map Gregorian dates exactly to 1582-2-24, when it was instituted by
+    /// Pope Gregory XIII. Adoption varies by nation, but has been in place worldwide
+    /// since 1926.
     pub fn code(self: Self) i32 {
-        // We take the approach of starting the year on March 1 so that leap days fall
-        // at the end. To do this we pretend Jan. - Feb. are part of the previous year.
-        var bYear: i32 = self.year() - 1600;
-        var dr = di.flooredDivision(self.month() - 3, 12);
-        var bYday: i32 = dayOffset[@intCast(usize, dr.modulus)] + self.day() - 1;
-        bYear += dr.quotient;
-
-        dr = di.flooredDivision(bYear, 400);
-        bYear = dr.modulus;
-        var days: i32 = dr.quotient * nbrOfDaysPer400Years;
-
-        dr = di.flooredDivision(bYear, 100);
-        bYear = dr.modulus;
-        days += dr.quotient * nbrOfDaysPer100Years;
-
-        dr = di.flooredDivision(bYear, 4);
-        bYear = dr.modulus;
-        days += dr.quotient * nbrOfDaysPer4Years + nbrOfDaysPerYear * bYear + bYday - unixEpochBeginsOnDay;
-        return days;
+        // We take the approach of starting the year on March 1 so that the leap day falls
+        // at the end. To do this we pretend January and February are part of the previous
+        // year.
+        //
+        // Our internal representation will choose as its base date any day which is
+        // at the start of the 400-year Gregorian cycle. We have arbitrarily selected
+        // 2000-3-1.
+        const dr = di.flooredDivision(self.month() - 3, 12);
+        const dr400 = di.flooredDivision(self.year() + dr.quotient - 2000, 400);
+        const dr100 = di.flooredDivision(dr400.modulus, 100);
+        const dr4 = di.flooredDivision(dr100.modulus, 4);
+        return dr400.quotient * nbrOfDaysPer400Years + dr100.quotient * nbrOfDaysPer100Years + dr4.quotient * nbrOfDaysPer4Years + nbrOfDaysPerYear * dr4.modulus + dayOffset[@intCast(usize, dr.modulus)] + self.day() - unixEpochBeginsOnDay - 1;
     }
 };
 
@@ -149,35 +145,10 @@ pub fn weekday(datecode: i32) Weekday {
     return @intToEnum(Weekday, @truncate(@TagType(Weekday), @intCast(u32, dayOfWeek(datecode))));
 }
 
-/// Construct a Date using a date code. See Date.code for important caveats.
-pub fn FromCode(datecode: i32) Date {
-    // dateCode has the number of days relative to 1/1/1970, shift this back to 3/1/1600
-    var bdc: i32 = datecode + unixEpochBeginsOnDay;
-    var dr = di.flooredDivision(bdc, nbrOfDaysPer400Years);
-    bdc = dr.modulus;
-    var y: i32 = dr.quotient * 400;
-    dr = di.flooredDivision(bdc, nbrOfDaysPer100Years);
-    bdc = dr.modulus;
-    y += dr.quotient * 100;
-    // put the leap day at the end of 400-year cycle
-    if (dr.quotient == 4) {
-        y -= 100;
-        bdc += nbrOfDaysPer100Years;
-    }
-    dr = di.flooredDivision(bdc, nbrOfDaysPer4Years);
-    bdc = dr.modulus;
-    y += dr.quotient * 4;
-    dr = di.flooredDivision(bdc, nbrOfDaysPerYear);
-    bdc = dr.modulus;
-    // put the leap day at the end of 4-year cycle
-    y += dr.quotient;
-    if (dr.quotient == 4) {
-        y -= 1;
-        bdc += nbrOfDaysPerYear;
-    }
+pub fn findDayOffsetIdx(bdc: i32) usize {
     // find the month in the table
     var gamma: usize = 0;
-    for (dayOffset) |ofs| {
+    inline for (dayOffset) |ofs| {
         if (bdc < ofs) {
             gamma -= 1;
             break;
@@ -186,13 +157,35 @@ pub fn FromCode(datecode: i32) Date {
         }
         gamma += 1;
     }
+    return gamma;
+}
+
+/// Construct a Date using a date code. This constructor requires more computation than
+/// the other two, so prefer the others if possible.
+pub fn FromCode(datecode: i32) Date {
+    // dateCode has the number of days relative to 1/1/1970, shift this ahead to 3/1/2000
+    const dr400 = di.flooredDivision(datecode + unixEpochBeginsOnDay, nbrOfDaysPer400Years);
+    var dr100 = di.flooredDivision(dr400.modulus, nbrOfDaysPer100Years);
+    // put the leap day at the end of 400-year cycle
+    if (dr100.quotient == 4) {
+        dr100.quotient -= 1;
+        dr100.modulus += nbrOfDaysPer100Years;
+    }
+    const dr4 = di.flooredDivision(dr100.modulus, nbrOfDaysPer4Years);
+    var dr1 = di.flooredDivision(dr4.modulus, nbrOfDaysPerYear);
+    // put the leap day at the end of 4-year cycle
+    if (dr1.quotient == 4) {
+        dr1.quotient -= 1;
+        dr1.modulus += nbrOfDaysPerYear;
+    }
+    const gamma = findDayOffsetIdx(dr1.modulus);
     if (gamma >= 10) {
-        y += 1;
+        dr1.quotient += 1;
     }
     return Date{
-        ._year = @intCast(i23, y + 1600),
+        ._year = @intCast(i23, dr400.quotient * 400 + dr100.quotient * 100 + dr4.quotient * 4 + dr1.quotient + 2000),
         ._month = @intCast(u4, (gamma + 2) % 12),
-        ._day = @intCast(u5, bdc - dayOffset[gamma]),
+        ._day = @intCast(u5, dr1.modulus - dayOffset[gamma]),
     };
 }
 
