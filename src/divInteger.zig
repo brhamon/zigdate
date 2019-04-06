@@ -1,24 +1,40 @@
 const std = @import("std");
-const T = std.testing;
+const testing = std.testing;
+const TypeId = @import("builtin").TypeId;
+const TypeInfo = @import("builtin").TypeInfo;
 
-pub const DivPair = struct {
-    quotient: i32,
-    modulus: i32,
-};
+pub fn DivPair(comptime T: type) type {
+    return struct {
+        quotient: T,
+        modulus: T,
+    };
+}
 
-pub const divisionOp = fn (dividend: i32, divisor: i32) DivPair;
-
-pub fn signFlag(val: i32) u1 {
-    if (val < 0) {
-        return 1;
+pub fn signFlag(comptime T: type, val: T) u1 {
+    if (@typeId(T) != TypeId.Int) {
+        @compileError("signFlag requires an integer type");
+    }
+    if (@typeInfo(T).Int.is_signed) {
+        if (val < 0) {
+            return 1; 
+        } else {
+            return 0;
+        }
     } else {
         return 0;
     }
 }
 
-pub fn abs(val: i32) i32 {
-    if (val < 0) {
-        return -val;
+pub fn abs(comptime T: type, val: T) T {
+    if (@typeId(T) != TypeId.Int) {
+        @compileError("abs requires an integer type");
+    }
+    if (@typeInfo(T).Int.is_signed) {
+        if (val < 0) {
+            return -val;
+        } else {
+            return val;
+        }
     } else {
         return val;
     }
@@ -26,77 +42,71 @@ pub fn abs(val: i32) i32 {
 
 /// flooredDivision is defined as q = floor(a/n)
 /// The quotient is always rounded downward, even if it is negative.
-pub fn flooredDivision(dividend: i32, divisor: i32) DivPair {
-    const s_divisor = signFlag(divisor);
-    const abs_divisor = abs(divisor);
-    var m: i32 = @rem(abs(dividend), abs_divisor);
+pub fn flooredDivision(comptime T: type, dividend: T, divisor: T) DivPair(T) {
+    if (@typeId(T) != TypeId.Int) {
+        @compileError("flooredDivision requires an integer type");
+    }
+    const s_divisor = signFlag(T, divisor);
+    const abs_divisor = abs(T, divisor);
+    var m: T = @rem(abs(T, dividend), abs_divisor);
     var d = dividend;
-    if (m != 0 and signFlag(dividend) ^ s_divisor != 0) {
+    if (m != 0 and signFlag(T, dividend) ^ s_divisor != 0) {
         d -= divisor;
         m = abs_divisor - m;
     }
-    return DivPair{
+    return DivPair(T){
         .quotient = @divTrunc(d, divisor),
-        .modulus = switch (s_divisor) {
-            1 => -m,
-            0 => m,
-        },
+        .modulus = if (s_divisor != 0) -m else m,
     };
 }
 
 /// truncatedDivision is defined as q = truncate(a/n). 
 /// q will remain zero for -n < a < n.
 /// m always has the sign of the divisor.
-pub fn truncatedDivision(dividend: i32, divisor: i32) DivPair {
-    const abs_divisor = abs(divisor);
-    const s_dividend = signFlag(dividend);
-    const abs_dividend = abs(dividend);
-    const q: i32 = @divTrunc(abs_dividend, abs_divisor);
-    const m: i32 = @rem(abs_dividend, abs_divisor);
-    return DivPair{
-        .quotient = switch (signFlag(divisor) ^ s_dividend) {
-            1 => -q,
-            0 => q,
-        },
-        .modulus = switch (s_dividend) {
-            1 => -m,
-            0 => m,
-        },
+pub fn truncatedDivision(comptime T: type, dividend: T, divisor: T) DivPair(T) {
+    const abs_divisor = abs(T, divisor);
+    const s_dividend = signFlag(T, dividend);
+    const abs_dividend = abs(T, dividend);
+    const q: T = @divTrunc(abs_dividend, abs_divisor);
+    const m: T = @rem(abs_dividend, abs_divisor);
+    return DivPair(T){
+        .quotient = if (signFlag(T, divisor) ^ s_dividend != 0) -q else q,
+        .modulus = if (s_dividend != 0) -m else m,
     };
 }
 
 /// euclideanDivision is defined as: q = floor(a/n), for n > 0; and q = ceil(a/n) for n < 0.
 /// The modulus is always 0 <= m < n.
-pub fn euclideanDivision(dividend: i32, divisor: i32) DivPair {
-    const abs_divisor = abs(divisor);
-    var m: i32 = @rem(abs(dividend), abs_divisor);
-    var q: i32 = @divTrunc(dividend, divisor);
+pub fn euclideanDivision(comptime T: type, dividend: T, divisor: T) DivPair(T) {
+    const abs_divisor = abs(T, divisor);
+    var m: T = @rem(abs(T, dividend), abs_divisor);
+    var q: T = @divTrunc(dividend, divisor);
     if (m != 0) {
-        if (signFlag(dividend) == 1) {
+        if (signFlag(T, dividend) == 1) {
             m = abs_divisor - m;
-            if (signFlag(divisor) == 1) {
+            if (signFlag(T, divisor) == 1) {
                 q += 1;
             } else {
                 q -= 1;
             }
         }
     }
-    return DivPair{
+    return DivPair(T){
         .quotient = q,
         .modulus = m,
     };
 }
 
 test "flooredDivision quick" {
-    var di = flooredDivision(10, 12);
-    T.expectEqual(i32(10), di.modulus);
-    T.expectEqual(i32(0), di.quotient);
-    di = flooredDivision(-14, 12);
-    T.expectEqual(i32(10), di.modulus);
-    T.expectEqual(i32(-2), di.quotient);
-    di = flooredDivision(-2, 12);
-    T.expectEqual(i32(10), di.modulus);
-    T.expectEqual(i32(-1), di.quotient);
+    var di = flooredDivision(i32, 10, 12);
+    testing.expectEqual(i32(10), di.modulus);
+    testing.expectEqual(i32(0), di.quotient);
+    di = flooredDivision(i32, -14, 12);
+    testing.expectEqual(i32(10), di.modulus);
+    testing.expectEqual(i32(-2), di.quotient);
+    di = flooredDivision(i32, -2, 12);
+    testing.expectEqual(i32(10), di.modulus);
+    testing.expectEqual(i32(-1), di.quotient);
 }
 
 test "flooredDivision full" {
@@ -123,803 +133,165 @@ test "flooredDivision full" {
         TestDivIntegerElem{ .N = 0, .D = -3, .Q = 0, .M = 0 },
     };
     for (testData) |elem| {
-        const di = flooredDivision(elem.N, elem.D);
-        T.expectEqual(elem.Q, di.quotient);
-        T.expectEqual(elem.M, di.modulus);
+        const di = flooredDivision(i32, elem.N, elem.D);
+        testing.expectEqual(elem.Q, di.quotient);
+        testing.expectEqual(elem.M, di.modulus);
+    }
+}
+
+const IdtIdx = enum(usize) {
+    a,
+    n,
+    q,
+    r,
+};
+const truncatedTable = []const [@memberCount(IdtIdx)]i32 {
+    []i32{ -10, 3, -3, -1, },
+    []i32{ -9, 3, -3, 0, },
+    []i32{ -8, 3, -2, -2, },
+    []i32{ -7, 3, -2, -1, },
+    []i32{ -6, 3, -2, 0, },
+    []i32{ -5, 3, -1, -2, },
+    []i32{ -4, 3, -1, -1, },
+    []i32{ -3, 3, -1, 0, },
+    []i32{ -2, 3, 0, -2, },
+    []i32{ -1, 3, 0, -1, },
+    []i32{ 0, 3, 0, 0, },
+    []i32{ 1, 3, 0, 1, },
+    []i32{ 2, 3, 0, 2, },
+    []i32{ 3, 3, 1, 0, },
+    []i32{ 4, 3, 1, 1, },
+    []i32{ 5, 3, 1, 2, },
+    []i32{ 6, 3, 2, 0, },
+    []i32{ 7, 3, 2, 1, },
+    []i32{ 8, 3, 2, 2, },
+    []i32{ 9, 3, 3, 0, },
+    []i32{ 10, 3, 3, 1, },
+    []i32{ -10, -3, 3, -1, },
+    []i32{ -9, -3, 3, 0, },
+    []i32{ -8, -3, 2, -2, },
+    []i32{ -7, -3, 2, -1, },
+    []i32{ -6, -3, 2, 0, },
+    []i32{ -5, -3, 1, -2, },
+    []i32{ -4, -3, 1, -1, },
+    []i32{ -3, -3, 1, 0, },
+    []i32{ -2, -3, 0, -2, },
+    []i32{ -1, -3, 0, -1, },
+    []i32{ 0, -3, 0, 0, },
+    []i32{ 1, -3, 0, 1, },
+    []i32{ 2, -3, 0, 2, },
+    []i32{ 3, -3, -1, 0, },
+    []i32{ 4, -3, -1, 1, },
+    []i32{ 5, -3, -1, 2, },
+    []i32{ 6, -3, -2, 0, },
+    []i32{ 7, -3, -2, 1, },
+    []i32{ 8, -3, -2, 2, },
+    []i32{ 9, -3, -3, 0, },
+    []i32{ 10, -3, -3, 1, },
+};
+const flooredTable = []const [@memberCount(IdtIdx)]i32 {
+    []i32{ -10, 3, -4, 2, },
+    []i32{ -9, 3, -3, 0, },
+    []i32{ -8, 3, -3, 1, },
+    []i32{ -7, 3, -3, 2, },
+    []i32{ -6, 3, -2, 0, },
+    []i32{ -5, 3, -2, 1, },
+    []i32{ -4, 3, -2, 2, },
+    []i32{ -3, 3, -1, 0, },
+    []i32{ -2, 3, -1, 1, },
+    []i32{ -1, 3, -1, 2, },
+    []i32{ 0, 3, 0, 0, },
+    []i32{ 1, 3, 0, 1, },
+    []i32{ 2, 3, 0, 2, },
+    []i32{ 3, 3, 1, 0, },
+    []i32{ 4, 3, 1, 1, },
+    []i32{ 5, 3, 1, 2, },
+    []i32{ 6, 3, 2, 0, },
+    []i32{ 7, 3, 2, 1, },
+    []i32{ 8, 3, 2, 2, },
+    []i32{ 9, 3, 3, 0, },
+    []i32{ 10, 3, 3, 1, },
+    []i32{ -10, -3, 3, -1, },
+    []i32{ -9, -3, 3, 0, },
+    []i32{ -8, -3, 2, -2, },
+    []i32{ -7, -3, 2, -1, },
+    []i32{ -6, -3, 2, 0, },
+    []i32{ -5, -3, 1, -2, },
+    []i32{ -4, -3, 1, -1, },
+    []i32{ -3, -3, 1, 0, },
+    []i32{ -2, -3, 0, -2, },
+    []i32{ -1, -3, 0, -1, },
+    []i32{ 0, -3, 0, 0, },
+    []i32{ 1, -3, -1, -2, },
+    []i32{ 2, -3, -1, -1, },
+    []i32{ 3, -3, -1, 0, },
+    []i32{ 4, -3, -2, -2, },
+    []i32{ 5, -3, -2, -1, },
+    []i32{ 6, -3, -2, 0, },
+    []i32{ 7, -3, -3, -2, },
+    []i32{ 8, -3, -3, -1, },
+    []i32{ 9, -3, -3, 0, },
+    []i32{ 10, -3, -4, -2, },
+};
+const euclideanTable = []const [@memberCount(IdtIdx)]i32 {
+    []i32{ -10, 3, -4, 2, },
+    []i32{ -9, 3, -3, 0, },
+    []i32{ -8, 3, -3, 1, },
+    []i32{ -7, 3, -3, 2, },
+    []i32{ -6, 3, -2, 0, },
+    []i32{ -5, 3, -2, 1, },
+    []i32{ -4, 3, -2, 2, },
+    []i32{ -3, 3, -1, 0, },
+    []i32{ -2, 3, -1, 1, },
+    []i32{ -1, 3, -1, 2, },
+    []i32{ 0, 3, 0, 0, },
+    []i32{ 1, 3, 0, 1, },
+    []i32{ 2, 3, 0, 2, },
+    []i32{ 3, 3, 1, 0, },
+    []i32{ 4, 3, 1, 1, },
+    []i32{ 5, 3, 1, 2, },
+    []i32{ 6, 3, 2, 0, },
+    []i32{ 7, 3, 2, 1, },
+    []i32{ 8, 3, 2, 2, },
+    []i32{ 9, 3, 3, 0, },
+    []i32{ 10, 3, 3, 1, },
+    []i32{ -10, -3, 4, 2, },
+    []i32{ -9, -3, 3, 0, },
+    []i32{ -8, -3, 3, 1, },
+    []i32{ -7, -3, 3, 2, },
+    []i32{ -6, -3, 2, 0, },
+    []i32{ -5, -3, 2, 1, },
+    []i32{ -4, -3, 2, 2, },
+    []i32{ -3, -3, 1, 0, },
+    []i32{ -2, -3, 1, 1, },
+    []i32{ -1, -3, 1, 2, },
+    []i32{ 0, -3, 0, 0, },
+    []i32{ 1, -3, 0, 1, },
+    []i32{ 2, -3, 0, 2, },
+    []i32{ 3, -3, -1, 0, },
+    []i32{ 4, -3, -1, 1, },
+    []i32{ 5, -3, -1, 2, },
+    []i32{ 6, -3, -2, 0, },
+    []i32{ 7, -3, -2, 1, },
+    []i32{ 8, -3, -2, 2, },
+    []i32{ 9, -3, -3, 0, },
+    []i32{ 10, -3, -3, 1, },
+};
+
+const divisionOp = fn (type, i32, i32) DivPair(i32);
+
+fn run(comptime op: divisionOp, comptime table: []const [@memberCount(IdtIdx)]i32) void {
+    for (truncatedTable) |testcase| {
+        const pair = truncatedDivision(i32, testcase[@enumToInt(IdtIdx.a)], testcase[@enumToInt(IdtIdx.n)]);
+        const a2 = testcase[@enumToInt(IdtIdx.n)] * pair.quotient + pair.modulus;
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.a)], a2);
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.q)], pair.quotient);
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.r)], pair.modulus);
     }
 }
 
 test "integer division" {
-    const IdtElem = struct {
-        a: i32,
-        n: i32,
-        q: i32,
-        r: i32,
-    };
-    const IdtPass = struct {
-        op: divisionOp,
-        table: []const IdtElem,
-    };
-    const idtTable = []IdtPass{
-        IdtPass{
-            .op = truncatedDivision,
-            .table = []IdtElem{
-                IdtElem{
-                    .a = -10,
-                    .n = 3,
-                    .q = -3,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = 3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = 3,
-                    .q = -2,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = 3,
-                    .q = -2,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = 3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = 3,
-                    .q = -1,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = 3,
-                    .q = -1,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = 3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = 3,
-                    .q = 0,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = 3,
-                    .q = 0,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = 3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = 3,
-                    .q = 0,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = 3,
-                    .q = 0,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = 3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = 3,
-                    .q = 1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = 3,
-                    .q = 1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = 3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = 3,
-                    .q = 2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = 3,
-                    .q = 2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = 3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = 3,
-                    .q = 3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -10,
-                    .n = -3,
-                    .q = 3,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = -3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = -3,
-                    .q = 2,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = -3,
-                    .q = 2,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = -3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = -3,
-                    .q = 1,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = -3,
-                    .q = 1,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = -3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = -3,
-                    .q = 0,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = -3,
-                    .q = 0,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = -3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = -3,
-                    .q = 0,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = -3,
-                    .q = 0,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = -3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = -3,
-                    .q = -1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = -3,
-                    .q = -1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = -3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = -3,
-                    .q = -2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = -3,
-                    .q = -2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = -3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = -3,
-                    .q = -3,
-                    .r = 1,
-                },
-            },
-        },
-        IdtPass{
-            .op = flooredDivision,
-            .table = []IdtElem{
-                IdtElem{
-                    .a = -10,
-                    .n = 3,
-                    .q = -4,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = 3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = 3,
-                    .q = -3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = 3,
-                    .q = -3,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = 3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = 3,
-                    .q = -2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = 3,
-                    .q = -2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = 3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = 3,
-                    .q = -1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = 3,
-                    .q = -1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = 3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = 3,
-                    .q = 0,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = 3,
-                    .q = 0,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = 3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = 3,
-                    .q = 1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = 3,
-                    .q = 1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = 3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = 3,
-                    .q = 2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = 3,
-                    .q = 2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = 3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = 3,
-                    .q = 3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -10,
-                    .n = -3,
-                    .q = 3,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = -3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = -3,
-                    .q = 2,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = -3,
-                    .q = 2,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = -3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = -3,
-                    .q = 1,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = -3,
-                    .q = 1,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = -3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = -3,
-                    .q = 0,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = -3,
-                    .q = 0,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = -3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = -3,
-                    .q = -1,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = -3,
-                    .q = -1,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = -3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = -3,
-                    .q = -2,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = -3,
-                    .q = -2,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = -3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = -3,
-                    .q = -3,
-                    .r = -2,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = -3,
-                    .q = -3,
-                    .r = -1,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = -3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = -3,
-                    .q = -4,
-                    .r = -2,
-                },
-            },
-        },
-        IdtPass{
-            .op = euclideanDivision,
-            .table = []IdtElem{
-                IdtElem{
-                    .a = -10,
-                    .n = 3,
-                    .q = -4,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = 3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = 3,
-                    .q = -3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = 3,
-                    .q = -3,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = 3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = 3,
-                    .q = -2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = 3,
-                    .q = -2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = 3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = 3,
-                    .q = -1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = 3,
-                    .q = -1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = 3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = 3,
-                    .q = 0,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = 3,
-                    .q = 0,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = 3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = 3,
-                    .q = 1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = 3,
-                    .q = 1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = 3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = 3,
-                    .q = 2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = 3,
-                    .q = 2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = 3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = 3,
-                    .q = 3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -10,
-                    .n = -3,
-                    .q = 4,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -9,
-                    .n = -3,
-                    .q = 3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -8,
-                    .n = -3,
-                    .q = 3,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -7,
-                    .n = -3,
-                    .q = 3,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -6,
-                    .n = -3,
-                    .q = 2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -5,
-                    .n = -3,
-                    .q = 2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -4,
-                    .n = -3,
-                    .q = 2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = -3,
-                    .n = -3,
-                    .q = 1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = -2,
-                    .n = -3,
-                    .q = 1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = -1,
-                    .n = -3,
-                    .q = 1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 0,
-                    .n = -3,
-                    .q = 0,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 1,
-                    .n = -3,
-                    .q = 0,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 2,
-                    .n = -3,
-                    .q = 0,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 3,
-                    .n = -3,
-                    .q = -1,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 4,
-                    .n = -3,
-                    .q = -1,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 5,
-                    .n = -3,
-                    .q = -1,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 6,
-                    .n = -3,
-                    .q = -2,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 7,
-                    .n = -3,
-                    .q = -2,
-                    .r = 1,
-                },
-                IdtElem{
-                    .a = 8,
-                    .n = -3,
-                    .q = -2,
-                    .r = 2,
-                },
-                IdtElem{
-                    .a = 9,
-                    .n = -3,
-                    .q = -3,
-                    .r = 0,
-                },
-                IdtElem{
-                    .a = 10,
-                    .n = -3,
-                    .q = -3,
-                    .r = 1,
-                },
-            },
-        },
-    };
-    for (idtTable) |pass| {
-        for (pass.table) |testcase| {
-            const pair = pass.op(testcase.a, testcase.n);
-            const a2 = testcase.n * pair.quotient + pair.modulus;
-            T.expectEqual(testcase.a, a2);
-            T.expectEqual(testcase.q, pair.quotient);
-            T.expectEqual(testcase.r, pair.modulus);
-        }
-    }
+    run(truncatedDivision, truncatedTable);
+    run(flooredDivision, flooredTable);
+    run(euclideanDivision, euclideanTable);
 }
