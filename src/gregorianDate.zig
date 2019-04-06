@@ -72,10 +72,10 @@ fn flooredDivision(dividend: i32, comptime divisor: i32) DivPair {
     if (divisor < 0) {
         @compileError("floored division implementation does not allow a negative divisor");
     }
-    const m = @rem(switch (dividend < 0) { true => -dividend, false => dividend }, divisor);
+    const m = @rem(if (dividend < 0) -dividend else dividend, divisor);
     return DivPair{
         .quotient = @divFloor(dividend, divisor),
-        .modulus = switch (m != 0 and dividend < 0) { true => divisor - m, false => m },
+        .modulus = if (m != 0 and dividend < 0) divisor - m else m,
     };
 }
 
