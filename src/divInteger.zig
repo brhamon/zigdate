@@ -65,13 +65,11 @@ pub fn flooredDivision(comptime T: type, dividend: T, divisor: T) DivPair(T) {
 /// m always has the sign of the divisor.
 pub fn truncatedDivision(comptime T: type, dividend: T, divisor: T) DivPair(T) {
     const abs_divisor = abs(T, divisor);
-    const s_dividend = signFlag(T, dividend);
-    const abs_dividend = abs(T, dividend);
-    const q: T = @divTrunc(abs_dividend, abs_divisor);
-    const m: T = @rem(abs_dividend, abs_divisor);
+    const q: T = @divTrunc(dividend, abs_divisor);
+    const m: T = @rem(dividend, abs_divisor);
     return DivPair(T){
-        .quotient = if (signFlag(T, divisor) ^ s_dividend != 0) -q else q,
-        .modulus = if (s_dividend != 0) -m else m,
+        .quotient = if (signFlag(T, divisor) != 0) -q else q,
+        .modulus = m,
     };
 }
 
@@ -140,10 +138,10 @@ test "flooredDivision full" {
 }
 
 const IdtIdx = enum(usize) {
-    a,
-    n,
-    q,
-    r,
+    A,
+    N,
+    Q,
+    R,
 };
 const truncatedTable = []const [@memberCount(IdtIdx)]i32 {
     []i32{ -10, 3, -3, -1, },
@@ -281,17 +279,26 @@ const euclideanTable = []const [@memberCount(IdtIdx)]i32 {
 const divisionOp = fn (type, i32, i32) DivPair(i32);
 
 fn run(comptime op: divisionOp, comptime table: []const [@memberCount(IdtIdx)]i32) void {
-    for (truncatedTable) |testcase| {
-        const pair = truncatedDivision(i32, testcase[@enumToInt(IdtIdx.a)], testcase[@enumToInt(IdtIdx.n)]);
-        const a2 = testcase[@enumToInt(IdtIdx.n)] * pair.quotient + pair.modulus;
-        testing.expectEqual(testcase[@enumToInt(IdtIdx.a)], a2);
-        testing.expectEqual(testcase[@enumToInt(IdtIdx.q)], pair.quotient);
-        testing.expectEqual(testcase[@enumToInt(IdtIdx.r)], pair.modulus);
+    for (table) |testcase| {
+        const pair = op(i32, testcase[@enumToInt(IdtIdx.A)], testcase[@enumToInt(IdtIdx.N)]);
+        const a2 = testcase[@enumToInt(IdtIdx.N)] * pair.quotient + pair.modulus;
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.A)], a2);
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.Q)], pair.quotient);
+        testing.expectEqual(testcase[@enumToInt(IdtIdx.R)], pair.modulus);
     }
 }
 
 test "integer division" {
-    run(truncatedDivision, truncatedTable);
-    run(flooredDivision, flooredTable);
-    run(euclideanDivision, euclideanTable);
+    const Pair = struct {
+        op: divisionOp,
+        table: []const [@memberCount(IdtIdx)]i32,
+    };
+    const runs = []Pair{
+        Pair{ .op=flooredDivision, .table=flooredTable, },
+        Pair{ .op=truncatedDivision, .table=truncatedTable, },
+        Pair{ .op=euclideanDivision, .table=euclideanTable, },
+    };
+    inline for (runs) |pass| {
+        run(pass.op, pass.table);
+    }
 }
