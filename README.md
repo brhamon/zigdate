@@ -3,12 +3,11 @@ ziglang date library
 
 A library of methods for manipulating dates in ziglang.
 
-Developed with ziglang 0.3.0+d494a5f4
-
 Tested on:
 
 * Windows 10 x86\_64 (Build 17134)
 * Fedora Core 28 x86\_64 (Linux 4.20.16)
+* Centos 7.6 x86\_64 (Linux 3.10)
 
 ## Goals
 
@@ -68,17 +67,18 @@ Additional examples may be found in `src/example.zig` .
 Because it is new, here's the TL;DNR on installing the latest Zig compiler, downloading
 and running this code.
 
-### Download zig and install
+## Download zig and install
 
-In a web browser, find the version and sha256 sum of the [newest stable build](https://ziglang.org/download/). Assign the desired os/arch/version/commit to the environment variable `ZIGVER`, and the system directory where you want to install it (e.g., `/opt` or `/usr/local`) to PREFIX.
+In a web browser, find the version and sha256 sum of the [newest stable build](https://ziglang.org/download/). Assign the desired os/arch/version/commit to the environment variable `ZIGVER`, and the system directory where you want to install it (e.g., `/opt` or `/usr/local`) to PREFIX, or just place it in your `HOME` directory on Windows.
 
-For example:
+### Linux example
+
 ```
-export ZIGVER=linux-x86_64-0.3.0+7dd1e0fc
+export ZIGVER=linux-x86_64-0.4.0+dea1027f
 export PREFIX=/opt
 ```
 
-Now as a regular user account (but which has `sudo` privileges), execute the following commands:
+As a regular user account (but which has `sudo` privileges), execute the following commands:
 ```
 curl -O https://ziglang.org/builds/zig-${ZIGVER}.tar.xz
 sha256sum zig-${ZIGVER}.tar.xz
@@ -97,7 +97,33 @@ zig version
 
 The output of the `zig version` command should match what you expect. You will probably want normal users to set the `PATH` as shown in their `.bashrc` files.
 
-### Clone this project, test and build
+### Windows example
+
+Untar and place `zig-${ZIGVER}` in your `PATH`. 
+
+I've installed TDM-GCC MinGW, Git, and a few other things. These are not required, but they provide the shell commands below.
+
+Run the `git bash` shell.
+```
+export ZIGVER=windows-x86_64-0.4.0+dea1027f
+```
+
+Run the following commands:
+```
+cd $HOME
+curl -O https://ziglang.org/builds/zig-${ZIGVER}.zip
+sha256sum zig-${ZIGVER}.zip
+# check against published sha256 sums, proceed only if exact match
+
+unzip -q zig-${ZIGVER}.zip
+
+export PATH="$HOME/zig-${ZIGVER}:$PATH"
+zig version
+```
+
+The output of the `zig version` command should match what you expect. You will probably want normal users to set the `PATH` as shown in their `.bashrc` files.
+
+## Clone this project, test and build
 
 From some path where you keep all your third-party source clones:
 ```
@@ -109,3 +135,19 @@ zig test src/gregorianDate_test.zig
 zig build run
 ```
 
+# divInteger
+
+There are three common ways to perform integer division: truncate, floor, and Euclidean. Integer division takes a dividend (`a`) and 
+a divisor (`n`), and produces a quotient (`q`) and a remainder (`r`). Regardless of the algorithm, the following is true:
+```
+a = q * n + r
+```
+Floored division is useful in the mathematics of the Gregorian Date library; and there's a non-public version of this algorithm in that code. However, implementing all three algorithms separately proved to be a good introduction to Zig generics; and helped me understand
+how to work with `comptime` constants.
+
+It took a bit of effort to produce passing tests; and for the moment, I'm only running tests on `i32`. I'll be trying to write the test code to try an assortment of signed integer types soon.
+
+To play with this side-project:
+```
+zig test src/divInteger.zig
+```
